@@ -41,9 +41,6 @@ def predict():
             return jsonify({'error': 'No file part'}), 400
         file = request.files['file']
         target_date = request.form.get('target_date', "2025-07-05")
-
-        pdb.set_trace()  # This will pause execution and enter the debugger
-
         predictions = predict_weekly_until_fixed(file, target_date)
         result = predictions.to_dict(orient='records')
         return jsonify(result)
