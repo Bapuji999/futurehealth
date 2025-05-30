@@ -8,7 +8,7 @@ from sklearn.linear_model import LinearRegression
 app = Flask(__name__)
 CORS(app)
 
-# Updated prediction function using file content
+# Updated prediction function with R² scores
 def predict_weekly_until_fixed(file_content, target_date: str = "2025-07-05"):
     print("Starting prediction function...")  # Debugging print statement
     raw_data = json.load(file_content)
@@ -24,25 +24,35 @@ def predict_weekly_until_fixed(file_content, target_date: str = "2025-07-05"):
     future_ordinals = future_dates.map(datetime.toordinal)
 
     predictions = {'date': future_dates}
+    r2_scores = {}
+
     for col in ['fat', 'smm', 'weight']:
         model = LinearRegression()
-        model.fit(df[['time_ordinal']], df[col])
+        X = df[['time_ordinal']]
+        y = df[col]
+        model.fit(X, y)
+        r2_scores[col] = round(model.score(X, y), 4)  # R² value rounded for readability
         predictions[col] = model.predict(future_ordinals.values.reshape(-1, 1))
     
     print("Predictions completed.")  # Debugging print statement
 
-    return pd.DataFrame(predictions)
+    pred_df = pd.DataFrame(predictions)
+    pred_df['date'] = pred_df['date'].astype(str)  # Convert datetime to string for JSON serialization
+    return pred_df, r2_scores
 
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
-        print("Starting prediction function...")  # Debugging print statement
+        print("Starting prediction endpoint...")  # Debugging print statement
         if 'file' not in request.files:
             return jsonify({'error': 'No file part'}), 400
         file = request.files['file']
         target_date = request.form.get('target_date', "2025-07-05")
-        predictions = predict_weekly_until_fixed(file, target_date)
-        result = predictions.to_dict(orient='records')
+        predictions, r2_scores = predict_weekly_until_fixed(file, target_date)
+        result = {
+            'predictions': predictions.to_dict(orient='records'),
+            'r2_scores': r2_scores
+        }
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 400
